@@ -129,7 +129,7 @@ the instance only has the permissions it needs for migration, nothing more.
 
 ![Alt text](Images/data-migration.png)
 ---
-## Store the Application Code in a private GitHub
+## 6. Store the Application Code in a private GitHub
 
 The application code is stored in GitHub to serve as a **central source of truth**.
 GitHub so that Docker can fetch the code, build it into a container image, and push it to ECR for deployment
@@ -144,7 +144,7 @@ This provides:
 
 ![Alt text](Images/vscode.png)
 
-### 6. Docker & ECR
+### 7. Docker & ECR
 Built the Docker image using BuildKit secrets to inject the GitHub token 
 and RDS password securely during the build — without baking them into 
 image layers. Push the image to aws ecr.
@@ -158,7 +158,7 @@ final image, keeping credentials out of the container entirely.
 
 ---
 
-### 7. ECS Fargate (Serverless Containers)
+### 8. ECS Fargate (Serverless Containers)
 Deployed the containerized application on ECS Fargate with the task running 
 in private subnets, no public IP, behind the load balancer.
 
@@ -179,7 +179,7 @@ specific function. This limits blast radius if any role is ever compromised.
 ![Alt text](Images/roles.png)
 ---
 
-### 8. Application Load Balancer & HTTPS
+### 9. Application Load Balancer & HTTPS
 Created an internet-facing ALB in public subnets with:
 - HTTP (port 80) → redirects to HTTPS
 - HTTPS (port 443) → forwards to ECS target group
@@ -194,7 +194,7 @@ by AWS — no manual certificate management.
 
 ---
 
-### 9. Auto-Scaling
+### 10. Auto-Scaling
 Configured ECS Service Auto Scaling with:
 - Min: 1 task | Max: 2 tasks
 - Target tracking on `ECSServiceAverageCPUUtilization` at 70%
@@ -208,7 +208,7 @@ to 1 keeps costs low during off-peak hours.
 ![Alt text](Images/autoscaling.png)
 ---
 
-### 10. Route 53
+### 11. Route 53
 Created an A record in the hosted zone pointing the custom domain to the 
 ALB DNS name.
 
@@ -243,6 +243,30 @@ DNS records.
 | 117MB zip file too large for GitHub | Used Git LFS to handle large file, then removed it after confirming source code was already in GitHub |
 
 ---
+## Future Improvements
+
+### 1. Infrastructure as Code (Terraform / CloudFormation)
+Currently the infrastructure was provisioned manually via the AWS Console.
+The next step is to define the entire infrastructure as code using Terraform
+so it can be versioned, peer-reviewed, and redeployed consistently across
+environments (dev, staging, production) with a single command.
+
+**Why it matters:** Manual console clicks are not repeatable or auditable.
+IaC is the industry standard for production infrastructure.
+
+---
+
+### 2. CI/CD Pipeline (GitHub Actions)
+Currently the Docker image is built and pushed manually by running a
+PowerShell script locally. A CI/CD pipeline would automate this entire
+process — on every push to the main branch, GitHub Actions would:
+- Run tests
+- Build the Docker image
+- Push to ECR
+- Deploy the new task to ECS automatically
+
+**Why it matters:** Manual deployments are slow and error-prone.
+Automated pipelines are a core DevOps expectation in any engineering team.
 
 ## Author
 **Oluwatobiloba Oludare**
