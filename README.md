@@ -99,9 +99,7 @@ application containers and the migration server.
 Created a managed MySQL database in a private subnet with an auto-generated 
 password stored in AWS Secrets Manager.
 
-**Why:** Using RDS instead of a self-managed database offloads patching, 
-backups, and failover to AWS. Auto-generating the password and storing it 
-in Secrets Manager means no human ever sees or handles the raw credentials.
+**Why:** I used MySQL because the application required structured data, relationships, and strong consistency. It works well with Amazon RDS and is easy to manage. The tradeoff is that it’s less flexible and harder to scale horizontally compared to NoSQL databases like MongoDB, so I would choose those alternatives for highly scalable or unstructured workloads.
 
 ![Alt text](Images/mysql.png)
 
