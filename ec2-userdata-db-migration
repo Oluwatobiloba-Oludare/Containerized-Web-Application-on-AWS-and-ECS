@@ -1,0 +1,99 @@
+#!/bin/bash
+set -euo pipefail
+
+# Redirect all output to a log file for debugging
+exec > >(tee /var/log/user-data.log | logger -t user-data) 2>&1
+
+echo "Starting user data script at $(date)"
+
+# ================================================================
+# Define environment variables
+# ================================================================
+
+export S3_URI=' '
+export RDS_ENDPOINT=' '
+export RDS_DB_NAME=' '
+export RDS_DB_USERNAME=' '
+export FLYWAY_VERSION='12.1.1'
+export SECRET_NAME=' '
+export AWS_REGION='us-east-1'
+
+# ================================================================
+# Install dependencies
+# ================================================================
+
+yum install -y jq
+yum update -y
+
+# ================================================================
+# Retrieve RDS credentials from Secrets Manager
+# ================================================================
+
+SECRET_JSON=$(aws secretsmanager get-secret-value \
+  --secret-id "${SECRET_NAME}" \
+  --region "${AWS_REGION}" \
+  --query SecretString \
+  --output text)
+
+if [[ -z "$SECRET_JSON" ]]; then
+  echo "ERROR: Failed to retrieve secret"
+  exit 1
+fi
+
+export RDS_DB_PASSWORD=$(echo "$SECRET_JSON" | jq -r '.password')
+
+if [[ -z "$RDS_DB_PASSWORD" || "$RDS_DB_PASSWORD" == "null" ]]; then
+  echo "ERROR: Failed to parse password"
+  exit 1
+fi
+
+# ================================================================
+# Install Flyway
+# ================================================================
+
+cd /home/ec2-user
+
+FLYWAY_DIR="/home/ec2-user/flyway-${FLYWAY_VERSION}"
+
+if [ ! -d "$FLYWAY_DIR" ]; then
+  echo "Downloading Flyway ${FLYWAY_VERSION}..."
+  wget -qO- "https://download.red-gate.com/maven/release/com/redgate/flyway/flyway-commandline/${FLYWAY_VERSION}/flyway-commandline-${FLYWAY_VERSION}-linux-x64.tar.gz" \
+    | tar -xz
+fi
+
+rm -f /usr/local/bin/flyway
+ln -s "${FLYWAY_DIR}/flyway" /usr/local/bin/flyway
+chmod +x "${FLYWAY_DIR}/flyway"
+
+# ================================================================
+# Prepare SQL migration directory
+# ================================================================
+
+MIGRATION_DIR="/home/ec2-user/sql"
+mkdir -p "$MIGRATION_DIR"
+chown -R ec2-user:ec2-user "$MIGRATION_DIR"
+
+aws s3 cp "${S3_URI}" "${MIGRATION_DIR}/"
+
+SQL_FILE="${MIGRATION_DIR}/$(basename ${S3_URI})"
+if [[ ! -f "$SQL_FILE" ]]; then
+  echo "ERROR: Migration file not found at ${SQL_FILE}"
+  exit 1
+fi
+
+echo "Migration file ready: $SQL_FILE"
+
+# ================================================================
+# Run Flyway migration
+# ================================================================
+
+echo "Starting Flyway migration..."
+
+"${FLYWAY_DIR}/flyway" \
+  -url="jdbc:mysql://${RDS_ENDPOINT}:3306/${RDS_DB_NAME}?allowPublicKeyRetrieval=true&useSSL=false" \
+  -user="${RDS_DB_USERNAME}" \
+  -password="${RDS_DB_PASSWORD}" \
+  -locations="filesystem:${MIGRATION_DIR}" \
+  migrate
+
+echo "Migration completed successfully at $(date)"
