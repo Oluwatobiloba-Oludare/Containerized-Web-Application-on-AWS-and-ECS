@@ -1,4 +1,4 @@
-# Containerized-Dynamic-Web-Application-on-AWS-and-ECS
+# Containerized Dynamic Web Application on AWS and ECS
 
 
 ## Overview
